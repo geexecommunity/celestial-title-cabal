@@ -27,6 +27,14 @@
     padding:32px 20px 60px;
   }
   .wrap{max-width:1180px;margin:0 auto;}
+  /* Results card breaks out of the 1180px column so the wide table can show every
+     column without a horizontal scrollbar. */
+  #resultsCard{
+    max-width:none;
+    width:96vw;
+    margin-left:50%;
+    transform:translateX(-50%);
+  }
   header{color:#fff;margin-bottom:24px;}
   header h1{margin:0 0 6px;font-size:26px;letter-spacing:.2px;}
   header p{margin:0;color:#cbd5e1;font-size:14px;}
@@ -383,7 +391,7 @@ function render(bySrv, prefix){
   RANK_TABLE.slice().reverse().forEach(r => {
     if(rankDist[r.rank]){
       const sw = r.color || "#e2e8f0";
-      legendRow.innerHTML += `<span><i style="background:${sw}"></i>${r.rank} (${r.title}) — ${rankDist[r.rank]} คน</span>`;
+      legendRow.innerHTML += `<span><i style="background:${sw}"></i>${r.rank} (${r.title})</span>`;
     }
   });
 
