@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Celestial Title Converter</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --teal:#134f5c;
+    --gold:#ffd966;
+    --bg:#0f172a;
+    --panel:#ffffff;
+    --muted:#64748b;
+    --border:#e2e8f0;
+    --accent:#2563eb;
+    --accent-dark:#1d4ed8;
+    --good:#16a34a;
+    --bad:#dc2626;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    background:linear-gradient(180deg,#0f172a 0%,#1e293b 260px,#f1f5f9 260px,#f1f5f9 100%);
+    color:#1e293b;
+    padding:32px 20px 60px;
+  }
+  .wrap{max-width:1180px;margin:0 auto;}
+  header{color:#fff;margin-bottom:24px;}
+  header h1{margin:0 0 6px;font-size:26px;letter-spacing:.2px;}
+  header p{margin:0;color:#cbd5e1;font-size:14px;}
+
+  .card{
+    background:var(--panel);
+    border-radius:14px;
+    box-shadow:0 10px 30px rgba(0,0,0,.12);
+    padding:24px;
+    margin-bottom:20px;
+  }
+  .card h2{margin:0 0 14px;font-size:16px;color:#0f172a;}
+
+  .controls-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;}
+  .field{flex:1;min-width:220px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;}
+  select,input[type=text]{
+    width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--border);font-size:14px;background:#fff;
+  }
+  select:focus,input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+
+  #dropzone{
+    border:2px dashed #cbd5e1;
+    border-radius:12px;
+    padding:34px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition:.15s;
+    background:#f8fafc;
+  }
+  #dropzone.drag{border-color:var(--accent);background:#eff6ff;}
+  #dropzone .icon{font-size:34px;margin-bottom:8px;}
+  #dropzone .main{font-size:15px;font-weight:600;color:#0f172a;}
+  #dropzone .sub{font-size:13px;color:var(--muted);margin-top:4px;}
+  #fileInput{display:none;}
+
+  .filepill{
+    display:inline-flex;align-items:center;gap:8px;
+    background:#eef2ff;color:#3730a3;border-radius:999px;
+    padding:6px 12px;font-size:13px;font-weight:600;margin-top:12px;
+  }
+  .filepill button{
+    border:none;background:none;color:#3730a3;cursor:pointer;font-weight:700;font-size:14px;
+  }
+
+  .btn{
+    display:inline-flex;align-items:center;gap:6px;
+    background:var(--accent);color:#fff;border:none;border-radius:8px;
+    padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;
+    transition:.15s;
+  }
+  .btn:hover{background:var(--accent-dark);}
+  .btn:disabled{background:#cbd5e1;cursor:not-allowed;}
+  .btn.secondary{background:#f1f5f9;color:#0f172a;border:1px solid var(--border);}
+  .btn.secondary:hover{background:#e2e8f0;}
+  .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
+
+  .stats{display:flex;gap:14px;flex-wrap:wrap;margin:6px 0 4px;}
+  .stat{
+    background:#f8fafc;border:1px solid var(--border);border-radius:10px;
+    padding:12px 16px;min-width:130px;
+  }
+  .stat .n{font-size:20px;font-weight:700;color:#0f172a;}
+  .stat .l{font-size:12px;color:var(--muted);margin-top:2px;}
+
+  .msg{padding:12px 14px;border-radius:8px;font-size:13.5px;margin-top:12px;display:none;}
+  .msg.error{background:#fef2f2;color:var(--bad);border:1px solid #fecaca;display:block;}
+  .msg.ok{background:#f0fdf4;color:var(--good);border:1px solid #bbf7d0;display:block;}
+  .msg.warn{background:#fffbeb;color:#b45309;border:1px solid #fde68a;display:block;}
+
+  table.out{border-collapse:collapse;width:100%;font-size:12.5px;margin-top:4px;}
+  table.out caption{
+    caption-side:top;text-align:left;font-weight:700;color:#0f172a;
+    font-size:14px;margin-bottom:6px;
+  }
+  table.out th, table.out td{border:1px solid #cbd5e1;padding:5px 8px;white-space:nowrap;}
+  table.out thead tr.title-row th{
+    background:var(--teal);color:#fff;font-size:14px;font-weight:700;padding:8px;text-align:center;
+  }
+  table.out thead tr.col-row th{
+    background:var(--teal);color:#fff;position:sticky;top:0;
+  }
+  table.out thead tr.col-row th.accent{color:var(--gold);}
+  table.out tbody tr:nth-child(even) td.plain{background:#f8fafc;}
+  .server-block{margin-bottom:34px;overflow-x:auto;border-radius:8px;}
+
+  .rank-cell, .title-cell{color:#fff;font-weight:700;text-align:center;}
+
+  footer{color:#94a3b8;font-size:12px;text-align:center;margin-top:30px;}
+  .hint{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5;}
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .legend span{
+    display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#334155;
+    background:#f8fafc;border:1px solid var(--border);border-radius:999px;padding:4px 10px;
+  }
+  .legend i{width:10px;height:10px;border-radius:3px;display:inline-block;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🏆 Celestial Title Converter</h1>
+    <p>โยนไฟล์ Excel (Report) ลงไป → ระบบจัดกลุ่ม Combo, จัดอันดับ, ใส่ Rank/Title ให้อัตโนมัติ พร้อมคัดลอกไปวางในชีทได้ทันที</p>
+  </header>
+
+  <div class="card">
+    <h2>1. เลือกเซิร์ฟเวอร์ / ป้ายกำกับ</h2>
+    <div class="controls-row">
+      <div class="field">
+        <label for="regionPreset">Preset</label>
+        <select id="regionPreset">
+          <option value="PC-SEA">Cabal PCSEA → [PC-SEA]</option>
+          <option value="CBM-SEA">Cabal MSEA → [CBM-SEA]</option>
+          <option value="custom">กำหนดเอง (Custom)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="prefixInput">ป้ายกำกับหัวตาราง (Prefix)</label>
+        <input type="text" id="prefixInput" value="PC-SEA">
+      </div>
+    </div>
+    <div class="hint">หัวตารางจะออกมาเป็น <code>[PREFIX] SV. &lt;ชื่อเซิร์ฟเวอร์จากไฟล์&gt;</code> เช่น <code>[PC-SEA] SV. Supernova</code> — ถ้าในไฟล์มีมากกว่า 1 เซิร์ฟเวอร์ ระบบจะแยกตารางให้อัตโนมัติ</div>
+  </div>
+
+  <div class="card">
+    <h2>2. อัปโหลดไฟล์ Excel</h2>
+    <div id="dropzone">
+      <div class="icon">📄</div>
+      <div class="main">ลากไฟล์ .xlsx มาวางตรงนี้ หรือคลิกเพื่อเลือกไฟล์</div>
+      <div class="sub">ต้องมีคอลัมน์: player_id, username, aid, userNum, max_credit, character_name, characterIdx, server</div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls">
+    </div>
+    <div id="filePillWrap"></div>
+    <div id="uploadMsg"></div>
+  </div>
+
+  <div class="card" id="resultsCard" style="display:none;">
+    <h2>3. ผลลัพธ์</h2>
+    <div class="stats" id="statsRow"></div>
+    <div class="btn-row">
+      <button class="btn" id="copyRichBtn">📋 คัดลอกทั้งหมด (พร้อมสี ไปวางใน Google Sheets)</button>
+      <button class="btn secondary" id="copyTsvBtn">คัดลอกแบบข้อความล้วน (TSV)</button>
+      <button class="btn secondary" id="downloadCsvBtn">ดาวน์โหลด .csv</button>
+      <button class="btn secondary" id="downloadXlsxBtn">ดาวน์โหลด .xlsx</button>
+    </div>
+    <div id="copyMsg"></div>
+    <div class="legend" id="legendRow"></div>
+    <div id="tablesContainer" style="margin-top:20px;"></div>
+  </div>
+
+  <footer>Celestial Title Converter — ทำงานทั้งหมดในเบราว์เซอร์ของคุณ ไม่มีการอัปโหลดข้อมูลไปที่เซิร์ฟเวอร์ใดๆ</footer>
+</div>
+
+<script>
+/* ---------------- Rank table (matches "Celestial Rank" reference sheet) ---------------- */
+const RANK_TABLE = [
+  { min: 0,       rank: "พลเรือน",        title: "-", color: null },
+  { min: 1000,    rank: "ทหาร",           title: "-", color: null },
+  { min: 5000,    rank: "ทหาร III",       title: "-", color: null },
+  { min: 10000,   rank: "หัวหน้า",         title: "Captian of Celestial",  color: "#0c769e" },
+  { min: 50000,   rank: "นายพล",          title: "General of Celestial",  color: "#00b050" },
+  { min: 100000,  rank: "ผู้บัญชาการ",     title: "Commander of Celestial",color: "#ff0d9a" },
+  { min: 300000,  rank: "ผู้กล้า",         title: "Hero of Celestial",     color: "#ff6d01" },
+  { min: 500000,  rank: "พระราชา",        title: "King of Celestial",     color: "#e0a800" },
+  { min: 700000,  rank: "จักรพรรดิ",      title: "Emperor of Celestial",  color: "#cc4125" },
+  { min: 1000000, rank: "เทพเจ้า",        title: "God of Celestial",      color: "#c00000" },
+  { min: 3000000, rank: "ผู้เป็นนิรันดร์", title: "Eternal of Celestial",  color: "#351c75" },
+];
+function getRank(value){
+  let result = RANK_TABLE[0];
+  for(const r of RANK_TABLE){ if(value >= r.min) result = r; else break; }
+  return result;
+}
+
+/* ---------------- Header detection (robust to column order) ---------------- */
+const HEADER_ALIASES = {
+  player_id:      ["player_id","combo id","comboid"],
+  username:       ["username"],
+  aid:            ["aid"],
+  userNum:        ["usernum","est usernum"],
+  max_credit:     ["max_credit","maximum ark gem"],
+  character_name: ["character_name","character"],
+  server:         ["server"],
+  characterIdx:   ["characteridx","character id"],
+};
+function findCol(headers, aliases){
+  const norm = headers.map(h => String(h||"").trim().toLowerCase());
+  for(const a of aliases){ const idx = norm.indexOf(a); if(idx !== -1) return idx; }
+  return -1;
+}
+function parseWorkbook(wb){
+  const sheetName = wb.SheetNames.includes("Report") ? "Report" : wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:"" });
+  if(!rows.length) throw new Error("ไฟล์นี้ไม่มีข้อมูล");
+  const headers = rows[0];
+  const col = {};
+  for(const key in HEADER_ALIASES) col[key] = findCol(headers, HEADER_ALIASES[key]);
+  const missing = Object.keys(col).filter(k => col[k] === -1);
+  if(missing.length) throw new Error("ไม่พบคอลัมน์ที่ต้องใช้ในไฟล์: " + missing.join(", "));
+  const dataRows = rows.slice(1).filter(r => r[col.player_id] !== "" && r[col.player_id] != null);
+  return { col, dataRows, sheetName };
+}
+function buildGroups(col, dataRows){
+  const groups = new Map();
+  for(const r of dataRows){
+    const pid = String(r[col.player_id]);
+    if(!groups.has(pid)){
+      groups.set(pid, {
+        player_id: pid,
+        username: r[col.username],
+        aid: r[col.aid],
+        userNum: r[col.userNum],
+        max_credit: parseFloat(r[col.max_credit]) || 0,
+        server: r[col.server],
+        characters: [],
+      });
+    }
+    groups.get(pid).characters.push({
+      character_name: r[col.character_name],
+      characterIdx: r[col.characterIdx],
+      server: r[col.server],
+    });
+  }
+  return Array.from(groups.values());
+}
+function groupByServer(groups){
+  const bySrv = new Map();
+  for(const g of groups){
+    const s = g.server || "(ไม่ระบุ)";
+    if(!bySrv.has(s)) bySrv.set(s, []);
+    bySrv.get(s).push(g);
+  }
+  for(const [,arr] of bySrv) arr.sort((a,b) => b.max_credit - a.max_credit);
+  return bySrv;
+}
+
+/* ---------------- State ---------------- */
+let lastResult = null; // { bySrv, prefix }
+
+/* ---------------- UI wiring ---------------- */
+const regionPreset = document.getElementById("regionPreset");
+const prefixInput = document.getElementById("prefixInput");
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("fileInput");
+const uploadMsg = document.getElementById("uploadMsg");
+const filePillWrap = document.getElementById("filePillWrap");
+const resultsCard = document.getElementById("resultsCard");
+const statsRow = document.getElementById("statsRow");
+const tablesContainer = document.getElementById("tablesContainer");
+const copyMsg = document.getElementById("copyMsg");
+const legendRow = document.getElementById("legendRow");
+
+regionPreset.addEventListener("change", () => {
+  if(regionPreset.value === "custom"){
+    prefixInput.value = "";
+    prefixInput.focus();
+  } else {
+    prefixInput.value = regionPreset.value;
+  }
+  if(lastResult) render(lastResult.bySrv, prefixInput.value);
+});
+prefixInput.addEventListener("input", () => {
+  if(lastResult) render(lastResult.bySrv, prefixInput.value);
+});
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("dragover", e => { e.preventDefault(); dropzone.classList.add("drag"); });
+dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag"));
+dropzone.addEventListener("drop", e => {
+  e.preventDefault();
+  dropzone.classList.remove("drag");
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener("change", e => {
+  if(e.target.files.length) handleFile(e.target.files[0]);
+});
+
+function showMsg(el, type, text){
+  el.className = "msg " + type;
+  el.textContent = text;
+  el.style.display = "block";
+}
+function clearMsg(el){ el.style.display = "none"; el.textContent = ""; }
+
+function handleFile(file){
+  clearMsg(uploadMsg);
+  filePillWrap.innerHTML = `<span class="filepill">📎 ${escapeHtml(file.name)} <button id="clearFileBtn" title="ล้างไฟล์">✕</button></span>`;
+  document.getElementById("clearFileBtn").addEventListener("click", () => {
+    filePillWrap.innerHTML = "";
+    fileInput.value = "";
+    resultsCard.style.display = "none";
+    lastResult = null;
+  });
+
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try{
+      const data = new Uint8Array(evt.target.result);
+      const wb = XLSX.read(data, { type:"array" });
+      const { col, dataRows, sheetName } = parseWorkbook(wb);
+      const groups = buildGroups(col, dataRows);
+      const bySrv = groupByServer(groups);
+
+      // auto-detect region preset from filename
+      const fname = file.name.toLowerCase();
+      if(fname.includes("pcsea")){ regionPreset.value = "PC-SEA"; prefixInput.value = "PC-SEA"; }
+      else if(fname.includes("msea")){ regionPreset.value = "CBM-SEA"; prefixInput.value = "CBM-SEA"; }
+
+      lastResult = { bySrv };
+      render(bySrv, prefixInput.value);
+
+      showMsg(uploadMsg, "ok", `อ่านไฟล์สำเร็จ (ชีท "${sheetName}") — พบ ${dataRows.length} แถวตัวละคร, จัดกลุ่มได้ ${groups.length} Combo, ${bySrv.size} เซิร์ฟเวอร์`);
+    }catch(err){
+      console.error(err);
+      showMsg(uploadMsg, "error", "อ่านไฟล์ไม่สำเร็จ: " + err.message);
+      resultsCard.style.display = "none";
+    }
+  };
+  reader.onerror = () => showMsg(uploadMsg, "error", "ไม่สามารถอ่านไฟล์นี้ได้");
+  reader.readAsArrayBuffer(file);
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function fmtNum(n){ return Number(n).toLocaleString("en-US"); }
+
+const OUT_HEADERS = ["Combo ID","Username","AID","EST Usernum","Character","Character id","server","Maximum Ark Gem","Rank","title"];
+
+function render(bySrv, prefix){
+  clearMsg(copyMsg);
+  resultsCard.style.display = "block";
+
+  // stats
+  let totalCombos = 0, totalChars = 0;
+  const rankDist = {};
+  for(const [,arr] of bySrv){
+    totalCombos += arr.length;
+    arr.forEach(g => {
+      totalChars += g.characters.length;
+      const r = getRank(g.max_credit).rank;
+      rankDist[r] = (rankDist[r]||0)+1;
+    });
+  }
+  statsRow.innerHTML = `
+    <div class="stat"><div class="n">${bySrv.size}</div><div class="l">เซิร์ฟเวอร์</div></div>
+    <div class="stat"><div class="n">${totalCombos}</div><div class="l">Combo (ผู้เล่น)</div></div>
+    <div class="stat"><div class="n">${totalChars}</div><div class="l">แถวตัวละครทั้งหมด</div></div>
+  `;
+
+  // legend (only ranks actually present)
+  legendRow.innerHTML = "";
+  RANK_TABLE.slice().reverse().forEach(r => {
+    if(rankDist[r.rank]){
+      const sw = r.color || "#e2e8f0";
+      legendRow.innerHTML += `<span><i style="background:${sw}"></i>${r.rank} (${r.title}) — ${rankDist[r.rank]} คน</span>`;
+    }
+  });
+
+  // tables
+  tablesContainer.innerHTML = "";
+  for(const [srv, arr] of bySrv){
+    const title = `[${prefix || "PREFIX"}] SV. ${srv}`;
+    const block = document.createElement("div");
+    block.className = "server-block";
+    let rowsHtml = "";
+    arr.forEach(g => {
+      const r = getRank(g.max_credit);
+      g.characters.forEach((c, idx) => {
+        rowsHtml += `<tr>
+          <td class="plain">${escapeHtml(g.player_id)}</td>
+          <td class="plain">${escapeHtml(g.username)}</td>
+          <td class="plain">${escapeHtml(g.aid)}</td>
+          <td class="plain">${escapeHtml(g.userNum)}</td>
+          <td class="plain">${escapeHtml(c.character_name)}</td>
+          <td class="plain">${escapeHtml(c.characterIdx)}</td>
+          <td class="plain">${escapeHtml(c.server)}</td>
+          <td class="plain">${fmtNum(g.max_credit)}</td>
+          <td class="rank-cell" style="background:${r.color || "#ffffff"};color:${r.color? "#fff":"#0f172a"}">${escapeHtml(r.rank)}</td>
+          <td class="title-cell" style="background:${r.color || "#ffffff"};color:${r.color? "#fff":"#0f172a"}">${escapeHtml(r.title)}</td>
+        </tr>`;
+      });
+    });
+    block.innerHTML = `<table class="out" data-server="${escapeHtml(srv)}">
+      <caption></caption>
+      <thead>
+        <tr class="title-row"><th colspan="10">${escapeHtml(title)}</th></tr>
+        <tr class="col-row">
+          ${OUT_HEADERS.map((h,i) => `<th class="${i>=7?'accent':''}">${h}</th>`).join("")}
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>`;
+    tablesContainer.appendChild(block);
+  }
+}
+
+/* ---------------- Export helpers ---------------- */
+function buildTSV(bySrv, prefix){
+  let out = "";
+  for(const [srv, arr] of bySrv){
+    out += `[${prefix||"PREFIX"}] SV. ${srv}\n`;
+    out += OUT_HEADERS.join("\t") + "\n";
+    arr.forEach(g => {
+      const r = getRank(g.max_credit);
+      g.characters.forEach(c => {
+        out += [g.player_id,g.username,g.aid,g.userNum,c.character_name,c.characterIdx,c.server,g.max_credit,r.rank,r.title].join("\t") + "\n";
+      });
+    });
+    out += "\n";
+  }
+  return out;
+}
+
+document.getElementById("copyTsvBtn").addEventListener("click", async () => {
+  if(!lastResult) return;
+  const tsv = buildTSV(lastResult.bySrv, prefixInput.value);
+  try{
+    await navigator.clipboard.writeText(tsv);
+    showMsg(copyMsg,"ok","คัดลอกแบบข้อความล้วน (TSV) แล้ว — วางใน Google Sheets ได้เลย");
+  }catch(e){
+    showMsg(copyMsg,"error","คัดลอกไม่สำเร็จ: " + e.message);
+  }
+});
+
+document.getElementById("copyRichBtn").addEventListener("click", async () => {
+  if(!lastResult) return;
+  const html = tablesContainer.innerHTML;
+  const tsv = buildTSV(lastResult.bySrv, prefixInput.value);
+  try{
+    if(window.ClipboardItem){
+      const blobHtml = new Blob([`<table>${extractAllTables()}</table>`], {type:"text/html"});
+      const blobText = new Blob([tsv], {type:"text/plain"});
+      await navigator.clipboard.write([ new ClipboardItem({ "text/html": blobHtml, "text/plain": blobText }) ]);
+      showMsg(copyMsg,"ok","คัดลอกพร้อมสีแล้ว — ไปวาง (Ctrl+V) ในเซลล์ A1 ของ Google Sheets ได้เลย");
+    } else {
+      await navigator.clipboard.writeText(tsv);
+      showMsg(copyMsg,"warn","เบราว์เซอร์นี้ไม่รองรับการคัดลอกพร้อมสี จึงคัดลอกเป็นข้อความล้วนแทน");
+    }
+  }catch(e){
+    showMsg(copyMsg,"error","คัดลอกไม่สำเร็จ: " + e.message);
+  }
+});
+
+function extractAllTables(){
+  const tables = tablesContainer.querySelectorAll("table.out");
+  let rowsHtml = "";
+  tables.forEach(t => {
+    // title row
+    rowsHtml += t.querySelector("thead .title-row").outerHTML;
+    rowsHtml += t.querySelector("thead .col-row").outerHTML;
+    rowsHtml += t.querySelector("tbody").innerHTML;
+    // blank spacer row
+    rowsHtml += `<tr><td colspan="10" style="border:none;height:14px;"></td></tr>`;
+  });
+  return rowsHtml;
+}
+
+document.getElementById("downloadCsvBtn").addEventListener("click", () => {
+  if(!lastResult) return;
+  const tsv = buildTSV(lastResult.bySrv, prefixInput.value);
+  // convert TSV -> CSV (simple, values have no embedded tabs/commas expected; still quote fields with commas)
+  const csv = tsv.split("\n").map(line => {
+    if(line === "") return "";
+    return line.split("\t").map(f => /[",\n]/.test(f) ? `"${f.replace(/"/g,'""')}"` : f).join(",");
+  }).join("\n");
+  downloadBlob(csv, "celestial-title-output.csv", "text/csv;charset=utf-8;");
+});
+
+document.getElementById("downloadXlsxBtn").addEventListener("click", () => {
+  if(!lastResult) return;
+  const wb = XLSX.utils.book_new();
+  for(const [srv, arr] of lastResult.bySrv){
+    const aoa = [
+      [`[${prefixInput.value||"PREFIX"}] SV. ${srv}`],
+      OUT_HEADERS,
+    ];
+    arr.forEach(g => {
+      const r = getRank(g.max_credit);
+      g.characters.forEach(c => {
+        aoa.push([g.player_id,g.username,g.aid,g.userNum,c.character_name,c.characterIdx,c.server,g.max_credit,r.rank,r.title]);
+      });
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const safeName = String(srv).substring(0,28).replace(/[\\/?*\[\]:]/g,"_") || "Sheet";
+    XLSX.utils.book_append_sheet(wb, ws, safeName);
+  }
+  XLSX.writeFile(wb, "celestial-title-output.xlsx");
+});
+
+function downloadBlob(content, filename, mime){
+  const blob = new Blob([content], {type:mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
