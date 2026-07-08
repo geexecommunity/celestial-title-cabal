@@ -148,6 +148,8 @@
         <select id="regionPreset">
           <option value="PC-SEA">Cabal PCSEA → [PC-SEA]</option>
           <option value="CBM-SEA">Cabal MSEA → [CBM-SEA]</option>
+          <option value="CBPC-TH">Cabal PCTH → [CBPC-TH]</option>
+          <option value="CBM-TH">Cabal MTH → [CBM-TH]</option>
           <option value="custom">กำหนดเอง (Custom)</option>
         </select>
       </div>
@@ -240,7 +242,18 @@ function parseWorkbook(wb){
 }
 function buildGroups(col, dataRows){
   const groups = new Map();
+  let skipped = 0;
   for(const r of dataRows){
+    const charName = r[col.character_name];
+    const charIdx = r[col.characterIdx];
+    const srv = r[col.server];
+    // A row with no character name / character id / server is unusable — drop it
+    // entirely rather than let it show up as a blank row in the output table.
+    const isValid = charName !== "" && charName != null &&
+                     charIdx !== "" && charIdx != null &&
+                     srv !== "" && srv != null;
+    if(!isValid){ skipped++; continue; }
+
     const pid = String(r[col.player_id]);
     if(!groups.has(pid)){
       groups.set(pid, {
@@ -249,17 +262,19 @@ function buildGroups(col, dataRows){
         aid: r[col.aid],
         userNum: r[col.userNum],
         max_credit: parseFloat(r[col.max_credit]) || 0,
-        server: r[col.server],
+        server: srv,
         characters: [],
       });
     }
     groups.get(pid).characters.push({
-      character_name: r[col.character_name],
-      characterIdx: r[col.characterIdx],
-      server: r[col.server],
+      character_name: charName,
+      characterIdx: charIdx,
+      server: srv,
     });
   }
-  return Array.from(groups.values());
+  // A combo that ends up with zero usable character rows has nothing worth showing.
+  const result = Array.from(groups.values()).filter(g => g.characters.length > 0);
+  return { groups: result, skipped };
 }
 function groupByServer(groups){
   const bySrv = new Map();
@@ -336,18 +351,25 @@ function handleFile(file){
       const data = new Uint8Array(evt.target.result);
       const wb = XLSX.read(data, { type:"array" });
       const { col, dataRows, sheetName } = parseWorkbook(wb);
-      const groups = buildGroups(col, dataRows);
+      const { groups, skipped } = buildGroups(col, dataRows);
       const bySrv = groupByServer(groups);
 
-      // auto-detect region preset from filename
+      // auto-detect region preset from filename first, then fall back to
+      // known server names found inside the data itself
       const fname = file.name.toLowerCase();
+      const serverNames = Array.from(bySrv.keys()).map(s => String(s).toLowerCase());
       if(fname.includes("pcsea")){ regionPreset.value = "PC-SEA"; prefixInput.value = "PC-SEA"; }
       else if(fname.includes("msea")){ regionPreset.value = "CBM-SEA"; prefixInput.value = "CBM-SEA"; }
+      else if(fname.includes("pcth")){ regionPreset.value = "CBPC-TH"; prefixInput.value = "CBPC-TH"; }
+      else if(fname.includes("mth")){ regionPreset.value = "CBM-TH"; prefixInput.value = "CBM-TH"; }
+      else if(serverNames.includes("orion")){ regionPreset.value = "CBPC-TH"; prefixInput.value = "CBPC-TH"; }
+      else if(serverNames.includes("serpens")){ regionPreset.value = "CBM-TH"; prefixInput.value = "CBM-TH"; }
 
       lastResult = { bySrv };
       render(bySrv, prefixInput.value);
 
-      showMsg(uploadMsg, "ok", `อ่านไฟล์สำเร็จ (ชีท "${sheetName}") — พบ ${dataRows.length} แถวตัวละคร, จัดกลุ่มได้ ${groups.length} Combo, ${bySrv.size} เซิร์ฟเวอร์`);
+      const skippedNote = skipped > 0 ? ` (ตัดแถวข้อมูลไม่สมบูรณ์ทิ้ง ${skipped} แถว)` : "";
+      showMsg(uploadMsg, "ok", `อ่านไฟล์สำเร็จ (ชีท "${sheetName}") — พบ ${dataRows.length} แถวตัวละคร${skippedNote}, จัดกลุ่มได้ ${groups.length} Combo, ${bySrv.size} เซิร์ฟเวอร์`);
     }catch(err){
       console.error(err);
       showMsg(uploadMsg, "error", "อ่านไฟล์ไม่สำเร็จ: " + err.message);
