@@ -158,7 +158,7 @@
         <input type="text" id="prefixInput" value="PC-SEA">
       </div>
     </div>
-    <div class="hint">หัวตารางจะออกมาเป็น <code>[PREFIX] SV. &lt;ชื่อเซิร์ฟเวอร์จากไฟล์&gt;</code> เช่น <code>[PC-SEA] SV. Supernova</code> — ถ้าในไฟล์มีมากกว่า 1 เซิร์ฟเวอร์ ระบบจะแยกตารางให้อัตโนมัติ</div>
+    <div class="hint">หัวตารางจะออกมาเป็น <code>[PREFIX] SV. &lt;ชื่อเซิร์ฟเวอร์จากไฟล์&gt;</code> เช่น <code>[PC-SEA] SV. Supernova</code> — ถ้าในไฟล์มีมากกว่า 1 เซิร์ฟเวอร์ ระบบจะแยกตารางให้อัตโนมัติ — และถ้าเลือก Cabal MTH (CBM-TH) จะมีคอลัมน์ Gamepot ID เพิ่มให้อัตโนมัติ</div>
   </div>
 
   <div class="card">
@@ -237,6 +237,8 @@ function parseWorkbook(wb){
   for(const key in HEADER_ALIASES) col[key] = findCol(headers, HEADER_ALIASES[key]);
   const missing = Object.keys(col).filter(k => col[k] === -1);
   if(missing.length) throw new Error("ไม่พบคอลัมน์ที่ต้องใช้ในไฟล์: " + missing.join(", "));
+  // Gamepot ID is optional — only Cabal Mobile TH (CBM-TH) exports need it in the output.
+  col.gamePotId = findCol(headers, ["gamepotid","gamepot id","gamepot_id"]);
   const dataRows = rows.slice(1).filter(r => r[col.player_id] !== "" && r[col.player_id] != null);
   return { col, dataRows, sheetName };
 }
@@ -258,6 +260,7 @@ function buildGroups(col, dataRows){
     if(!groups.has(pid)){
       groups.set(pid, {
         player_id: pid,
+        gamePotId: col.gamePotId !== -1 ? r[col.gamePotId] : "",
         username: r[col.username],
         aid: r[col.aid],
         userNum: r[col.userNum],
@@ -385,7 +388,11 @@ function escapeHtml(s){
 }
 function fmtNum(n){ return Number(n).toLocaleString("en-US"); }
 
-const OUT_HEADERS = ["Combo ID","Username","AID","EST Usernum","Character","Character id","server","Maximum Ark Gem","Rank","title"];
+const OUT_HEADERS_STANDARD = ["Combo ID","Username","AID","EST Usernum","Character","Character id","server","Maximum Ark Gem","Rank","title"];
+// Cabal Mobile TH (CBM-TH) exports carry an extra "Gamepot ID" column right after Combo ID.
+const OUT_HEADERS_CBMTH = ["Combo ID","Gamepot ID","Username","AID","EST Usernum","Character","Character id","server","Maximum Ark Gem","Rank","title"];
+function useGamepotCol(prefix){ return String(prefix||"").trim().toUpperCase() === "CBM-TH"; }
+function getHeaders(prefix){ return useGamepotCol(prefix) ? OUT_HEADERS_CBMTH : OUT_HEADERS_STANDARD; }
 
 function render(bySrv, prefix){
   clearMsg(copyMsg);
@@ -418,6 +425,9 @@ function render(bySrv, prefix){
   });
 
   // tables
+  const headers = getHeaders(prefix);
+  const gamepot = useGamepotCol(prefix);
+  const accentStart = headers.length - 3; // last 3 columns are always Maximum Ark Gem, Rank, title
   tablesContainer.innerHTML = "";
   for(const [srv, arr] of bySrv){
     const title = `[${prefix || "PREFIX"}] SV. ${srv}`;
@@ -427,8 +437,10 @@ function render(bySrv, prefix){
     arr.forEach(g => {
       const r = getRank(g.max_credit);
       g.characters.forEach((c, idx) => {
+        const gamepotCell = gamepot ? `<td class="plain">${escapeHtml(g.gamePotId)}</td>` : "";
         rowsHtml += `<tr>
           <td class="plain">${escapeHtml(g.player_id)}</td>
+          ${gamepotCell}
           <td class="plain">${escapeHtml(g.username)}</td>
           <td class="plain">${escapeHtml(g.aid)}</td>
           <td class="plain">${escapeHtml(g.userNum)}</td>
@@ -444,9 +456,9 @@ function render(bySrv, prefix){
     block.innerHTML = `<table class="out" data-server="${escapeHtml(srv)}">
       <caption></caption>
       <thead>
-        <tr class="title-row"><th colspan="10">${escapeHtml(title)}</th></tr>
+        <tr class="title-row"><th colspan="${headers.length}">${escapeHtml(title)}</th></tr>
         <tr class="col-row">
-          ${OUT_HEADERS.map((h,i) => `<th class="${i>=7?'accent':''}">${h}</th>`).join("")}
+          ${headers.map((h,i) => `<th class="${i>=accentStart?'accent':''}">${h}</th>`).join("")}
         </tr>
       </thead>
       <tbody>${rowsHtml}</tbody>
@@ -457,14 +469,19 @@ function render(bySrv, prefix){
 
 /* ---------------- Export helpers ---------------- */
 function buildTSV(bySrv, prefix){
+  const headers = getHeaders(prefix);
+  const gamepot = useGamepotCol(prefix);
   let out = "";
   for(const [srv, arr] of bySrv){
     out += `[${prefix||"PREFIX"}] SV. ${srv}\n`;
-    out += OUT_HEADERS.join("\t") + "\n";
+    out += headers.join("\t") + "\n";
     arr.forEach(g => {
       const r = getRank(g.max_credit);
       g.characters.forEach(c => {
-        out += [g.player_id,g.username,g.aid,g.userNum,c.character_name,c.characterIdx,c.server,g.max_credit,r.rank,r.title].join("\t") + "\n";
+        const row = [g.player_id];
+        if(gamepot) row.push(g.gamePotId);
+        row.push(g.username,g.aid,g.userNum,c.character_name,c.characterIdx,c.server,g.max_credit,r.rank,r.title);
+        out += row.join("\t") + "\n";
       });
     });
     out += "\n";
@@ -506,12 +523,13 @@ function extractAllTables(){
   const tables = tablesContainer.querySelectorAll("table.out");
   let rowsHtml = "";
   tables.forEach(t => {
+    const colCount = t.querySelectorAll("thead .col-row th").length;
     // title row
     rowsHtml += t.querySelector("thead .title-row").outerHTML;
     rowsHtml += t.querySelector("thead .col-row").outerHTML;
     rowsHtml += t.querySelector("tbody").innerHTML;
     // blank spacer row
-    rowsHtml += `<tr><td colspan="10" style="border:none;height:14px;"></td></tr>`;
+    rowsHtml += `<tr><td colspan="${colCount}" style="border:none;height:14px;"></td></tr>`;
   });
   return rowsHtml;
 }
@@ -529,16 +547,22 @@ document.getElementById("downloadCsvBtn").addEventListener("click", () => {
 
 document.getElementById("downloadXlsxBtn").addEventListener("click", () => {
   if(!lastResult) return;
+  const prefix = prefixInput.value;
+  const headers = getHeaders(prefix);
+  const gamepot = useGamepotCol(prefix);
   const wb = XLSX.utils.book_new();
   for(const [srv, arr] of lastResult.bySrv){
     const aoa = [
-      [`[${prefixInput.value||"PREFIX"}] SV. ${srv}`],
-      OUT_HEADERS,
+      [`[${prefix||"PREFIX"}] SV. ${srv}`],
+      headers,
     ];
     arr.forEach(g => {
       const r = getRank(g.max_credit);
       g.characters.forEach(c => {
-        aoa.push([g.player_id,g.username,g.aid,g.userNum,c.character_name,c.characterIdx,c.server,g.max_credit,r.rank,r.title]);
+        const row = [g.player_id];
+        if(gamepot) row.push(g.gamePotId);
+        row.push(g.username,g.aid,g.userNum,c.character_name,c.characterIdx,c.server,g.max_credit,r.rank,r.title);
+        aoa.push(row);
       });
     });
     const ws = XLSX.utils.aoa_to_sheet(aoa);
