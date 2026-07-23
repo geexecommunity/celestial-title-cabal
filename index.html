@@ -131,22 +131,6 @@
     background:#f8fafc;border:1px solid var(--border);border-radius:999px;padding:4px 10px;
   }
   .legend i{width:10px;height:10px;border-radius:3px;display:inline-block;}
-
-  .history-item{
-    display:flex;align-items:center;justify-content:space-between;gap:12px;
-    border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;
-    background:#f8fafc;
-  }
-  .history-item .meta{font-size:13px;color:#0f172a;}
-  .history-item .meta b{font-weight:700;}
-  .history-item .sub{font-size:12px;color:var(--muted);margin-top:2px;}
-  .history-empty{font-size:13px;color:var(--muted);padding:8px 2px;}
-
-  .history-banner{
-    display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
-    background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:8px;
-    padding:10px 14px;margin-bottom:14px;font-size:13.5px;
-  }
 </style>
 </head>
 <body>
@@ -187,33 +171,10 @@
     </div>
     <div id="filePillWrap"></div>
     <div id="uploadMsg"></div>
-    <div class="controls-row" style="margin-top:16px;">
-      <div class="field">
-        <label for="uploaderNameInput">ชื่อผู้ทำ (ไม่บังคับ)</label>
-        <input type="text" id="uploaderNameInput" placeholder="เช่น พี่เป๊ะ">
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>3. ประวัติการใช้งาน (แชร์ให้ทุกคนดูได้)</h2>
-    <div class="controls-row">
-      <div class="field" style="flex:2;">
-        <label for="historyApiUrlInput">API URL (จาก Google Apps Script)</label>
-        <input type="text" id="historyApiUrlInput" placeholder="วาง Web app URL ที่นี่ครั้งเดียว เบราว์เซอร์นี้จะจำไว้เอง">
-      </div>
-    </div>
-    <div class="btn-row">
-      <button class="btn secondary" id="saveHistoryConfigBtn">บันทึก URL</button>
-      <button class="btn secondary" id="loadHistoryBtn">📜 โหลดประวัติทั้งหมด</button>
-    </div>
-    <div id="historyMsg"></div>
-    <div id="historyListWrap" style="margin-top:14px;"></div>
   </div>
 
   <div class="card" id="resultsCard" style="display:none;">
-    <h2>4. ผลลัพธ์</h2>
-    <div id="historyViewBanner"></div>
+    <h2>3. ผลลัพธ์</h2>
     <div class="stats" id="statsRow"></div>
     <div class="btn-row">
       <button class="btn" id="copyRichBtn">📋 คัดลอกทั้งหมด (พร้อมสี ไปวางใน Google Sheets)</button>
@@ -346,117 +307,11 @@ const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
 const uploadMsg = document.getElementById("uploadMsg");
 const filePillWrap = document.getElementById("filePillWrap");
-const uploaderNameInput = document.getElementById("uploaderNameInput");
 const resultsCard = document.getElementById("resultsCard");
-const historyViewBanner = document.getElementById("historyViewBanner");
 const statsRow = document.getElementById("statsRow");
 const tablesContainer = document.getElementById("tablesContainer");
 const copyMsg = document.getElementById("copyMsg");
 const legendRow = document.getElementById("legendRow");
-const historyApiUrlInput = document.getElementById("historyApiUrlInput");
-const saveHistoryConfigBtn = document.getElementById("saveHistoryConfigBtn");
-const loadHistoryBtn = document.getElementById("loadHistoryBtn");
-const historyMsg = document.getElementById("historyMsg");
-const historyListWrap = document.getElementById("historyListWrap");
-
-/* ---------------- Shared history (Google Apps Script backend) ---------------- */
-const LS_API_URL = "celestial_history_api_url";
-const LS_UPLOADER = "celestial_uploader_name";
-
-historyApiUrlInput.value = localStorage.getItem(LS_API_URL) || "";
-uploaderNameInput.value = localStorage.getItem(LS_UPLOADER) || "";
-
-saveHistoryConfigBtn.addEventListener("click", () => {
-  localStorage.setItem(LS_API_URL, historyApiUrlInput.value.trim());
-  localStorage.setItem(LS_UPLOADER, uploaderNameInput.value.trim());
-  showMsg(historyMsg, "ok", "บันทึกการตั้งค่าไว้ในเบราว์เซอร์นี้แล้ว");
-});
-uploaderNameInput.addEventListener("change", () => {
-  localStorage.setItem(LS_UPLOADER, uploaderNameInput.value.trim());
-});
-
-function fmtHistoryDate(iso){
-  try{
-    const d = new Date(iso);
-    return d.toLocaleString("th-TH", { dateStyle:"medium", timeStyle:"short" });
-  }catch(e){ return String(iso); }
-}
-
-loadHistoryBtn.addEventListener("click", async () => {
-  const url = historyApiUrlInput.value.trim();
-  if(!url){ showMsg(historyMsg, "error", "กรุณาใส่ API URL ก่อน (ดูวิธีตั้งค่าใน Apps Script)"); return; }
-  clearMsg(historyMsg);
-  historyListWrap.innerHTML = `<div class="history-empty">กำลังโหลด...</div>`;
-  try{
-    const res = await fetch(url, { method:"GET" });
-    const list = await res.json();
-    if(!Array.isArray(list)){ throw new Error((list && list.error) || "รูปแบบข้อมูลไม่ถูกต้อง"); }
-    if(list.length === 0){
-      historyListWrap.innerHTML = `<div class="history-empty">ยังไม่มีประวัติการแปลงไฟล์</div>`;
-      return;
-    }
-    historyListWrap.innerHTML = "";
-    list.forEach(item => {
-      const row = document.createElement("div");
-      row.className = "history-item";
-      row.innerHTML = `
-        <div class="meta">
-          <div><b>${escapeHtml(item.fileName || "(ไม่ทราบชื่อไฟล์)")}</b> — [${escapeHtml(item.preset||"")}] ${escapeHtml(item.servers||"")}</div>
-          <div class="sub">${fmtHistoryDate(item.timestamp)} · โดย ${escapeHtml(item.uploadedBy || "ไม่ระบุชื่อ")} · ${item.totalCombo||0} Combo / ${item.totalChars||0} แถว</div>
-        </div>
-        <button class="btn secondary" data-file="${escapeHtml(item.fileId||"")}" data-preset="${escapeHtml(item.preset||"")}">ดูผลลัพธ์</button>
-      `;
-      row.querySelector("button").addEventListener("click", (e) => viewHistoryResult(e.currentTarget.dataset.file, e.currentTarget.dataset.preset, item));
-      historyListWrap.appendChild(row);
-    });
-    showMsg(historyMsg, "ok", `โหลดประวัติสำเร็จ — พบ ${list.length} รายการ`);
-  }catch(err){
-    console.error(err);
-    showMsg(historyMsg, "error", "โหลดประวัติไม่สำเร็จ: " + err.message);
-    historyListWrap.innerHTML = "";
-  }
-});
-
-async function viewHistoryResult(fileId, preset, meta){
-  if(!fileId) return;
-  const url = historyApiUrlInput.value.trim();
-  showMsg(historyMsg, "ok", "กำลังโหลดผลลัพธ์...");
-  try{
-    const res = await fetch(`${url}?file=${encodeURIComponent(fileId)}`);
-    const tables = await res.json();
-    if(!Array.isArray(tables)) throw new Error("ไม่พบข้อมูลผลลัพธ์นี้ (อาจถูกลบไปแล้ว)");
-
-    regionPreset.value = ["PC-SEA","CBM-SEA","CBPC-TH","CBM-TH"].includes(preset) ? preset : "custom";
-    prefixInput.value = preset;
-
-    lastResult = { bySrv: tables };
-    render(tables, preset);
-    historyViewBanner.innerHTML = `<div class="history-banner">
-      <span>📜 กำลังดูผลลัพธ์ย้อนหลัง: <b>${escapeHtml(meta.fileName||"")}</b> โดย ${escapeHtml(meta.uploadedBy||"ไม่ระบุชื่อ")} เมื่อ ${fmtHistoryDate(meta.timestamp)}</span>
-      <button class="btn secondary" id="backToUploadBtn">✕ ปิด กลับไปอัปโหลดใหม่</button>
-    </div>`;
-    document.getElementById("backToUploadBtn").addEventListener("click", () => {
-      historyViewBanner.innerHTML = "";
-      resultsCard.style.display = "none";
-      lastResult = null;
-    });
-    resultsCard.scrollIntoView({ behavior:"smooth", block:"start" });
-    clearMsg(historyMsg);
-  }catch(err){
-    console.error(err);
-    showMsg(historyMsg, "error", "โหลดผลลัพธ์ไม่สำเร็จ: " + err.message);
-  }
-}
-
-function logToHistory(payload){
-  const url = historyApiUrlInput.value.trim();
-  if(!url) return; // history backend not configured — skip silently
-  fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" }, // avoids CORS preflight on Apps Script
-    body: JSON.stringify(payload),
-  }).catch(err => console.warn("บันทึกประวัติไม่สำเร็จ (ไม่กระทบการใช้งานหลัก):", err));
-}
 
 regionPreset.addEventListener("change", () => {
   if(regionPreset.value === "custom"){
@@ -521,23 +376,10 @@ function handleFile(file){
       else if(serverNames.includes("serpens")){ regionPreset.value = "CBM-TH"; prefixInput.value = "CBM-TH"; }
 
       lastResult = { bySrv };
-      historyViewBanner.innerHTML = "";
       render(bySrv, prefixInput.value);
 
       const skippedNote = skipped > 0 ? ` (ตัดแถวข้อมูลไม่สมบูรณ์ทิ้ง ${skipped} แถว)` : "";
       showMsg(uploadMsg, "ok", `อ่านไฟล์สำเร็จ (ชีท "${sheetName}") — พบ ${dataRows.length} แถวตัวละคร${skippedNote}, จัดกลุ่มได้ ${groups.length} Combo, ${bySrv.size} เซิร์ฟเวอร์`);
-
-      // Fire-and-forget: save the full result to the shared history backend, if configured.
-      logToHistory({
-        uploadedBy: uploaderNameInput.value.trim(),
-        fileName: file.name,
-        preset: prefixInput.value,
-        servers: Array.from(bySrv.keys()).join(", "),
-        totalCombo: groups.length,
-        totalChars: dataRows.length - skipped,
-        skipped: skipped,
-        tables: toEntries(bySrv),
-      });
     }catch(err){
       console.error(err);
       showMsg(uploadMsg, "error", "อ่านไฟล์ไม่สำเร็จ: " + err.message);
